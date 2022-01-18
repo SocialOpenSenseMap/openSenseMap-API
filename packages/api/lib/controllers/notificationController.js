@@ -66,10 +66,6 @@ const updateRule = async function updateRule(req, res, next) {
     if(req._userParams.active === 'true') {
       let rule = await NotificationRule.findById(req._userParams.notificationRuleId).exec();
       let rules = await NotificationRule.find({user: rule.user, active: true }).exec();
-      if(rules.length > 1 || (rules.length === 1 && rules[0]._id != req._userParams.notificationRuleId)) {
-        res.send({ code: 'Error', data: "Only 1 active rule allowed" });
-        return;
-      } 
     }
       
     let notificationRule = await NotificationRule.findOneAndUpdate({ _id: req._userParams.notificationRuleId }, req._userParams, { runValidators: true, new: true, context: 'query', upsert: true, setDefaultsOnInsert: true }).exec();
