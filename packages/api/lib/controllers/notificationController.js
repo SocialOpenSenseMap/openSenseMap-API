@@ -61,12 +61,6 @@ const updateRule = async function updateRule(req, res, next) {
   
 
   try {
-    
-    //So complicated because mongoose validators with 2 properties dont work on updates on only one
-    if(req._userParams.active === 'true') {
-      let rule = await NotificationRule.findById(req._userParams.notificationRuleId).exec();
-      let rules = await NotificationRule.find({user: rule.user, active: true }).exec();
-    }
       
     let notificationRule = await NotificationRule.findOneAndUpdate({ _id: req._userParams.notificationRuleId }, req._userParams, { runValidators: true, new: true, context: 'query', upsert: true, setDefaultsOnInsert: true }).exec();
     res.send({ code: 'Ok', data: notificationRule });
