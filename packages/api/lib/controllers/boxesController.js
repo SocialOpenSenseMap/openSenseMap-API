@@ -48,7 +48,10 @@ const
     checkPrivilege
   } = require('../helpers/userParamHelpers'),
   handleError = require('../helpers/errorHandler'),
-  jsonstringify = require('stringify-stream');
+  jsonstringify = require('stringify-stream'),
+  { model: NotificationRule } = require('../../../models/src/notification/notificationRule'),
+  { model: NotificationRuleConnector } = require('../../../models/src/notification/notificationRuleConnector'),
+  { model: Notification } = require('../../../models/src/notification/notification');
 
 /**
  * @apiDefine Addons
@@ -478,6 +481,17 @@ const deleteBox = async function deleteBox (req, res, next) {
   try {
     await req.user.checkPassword(password);
     const box = await req.user.removeBox(boxId);
+    // remove notifications, rules and connectors of the box
+    let notificationrules = await NotificationRule.find({ box: boxId }).exec();
+    var ids = notificationrules.map(rule => { return rule._id; });
+    // connectors
+    await NotificationRuleConnector.remove({ $or: [ {ruleA: {$in: ids}},  
+      {ruleB: {$in: ids}}]}).exec();
+    // notifications
+    await Notification.remove({notificationRule: {$in: ids}}).exec();
+    // rules
+    await NotificationRule.remove({ box: boxId }).exec();
+
     res.send({ code: 'Ok', message: 'box and all associated measurements marked for deletion' });
     clearCache(['getBoxes', 'getStats']);
     postToSlack(`Box deleted: ${req.user.name} (${redactEmail(req.user.email)}) just deleted "${box.name}" (${boxId})`);
