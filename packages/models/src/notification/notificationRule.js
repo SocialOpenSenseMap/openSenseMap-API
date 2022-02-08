@@ -63,7 +63,7 @@ const notificationRuleSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId
   },
   connected: {
-    type: mongoose.Schema.Types.ObjectId,
+    type: [mongoose.Schema.Types.ObjectId],
     ref: 'notificationRuleConnector',
     required: false
   }
@@ -74,6 +74,7 @@ notificationRuleSchema.statics.initNew = function(user, params){
 
   return this.create({
    ...params,
+    connected:[],
     user: user
   })
 }
@@ -82,7 +83,7 @@ notificationRuleSchema.statics.initNew = function(user, params){
 notificationRuleSchema.pre('validate', function(next) {
   if (this.active) {
 
-      notificationRuleModel.find({sensor: this.sensor, box: this.box, activationThreshold: this.activationThreshold,
+      notificationRuleModel.find({sensors: this.sensors, box: this.box, activationThreshold: this.activationThreshold,
         activationOperator: this.activationOperator, user: this.user, activationTrigger: this.activationTrigger}, function(err,docs){
         if(docs.length < 1) {
           next();

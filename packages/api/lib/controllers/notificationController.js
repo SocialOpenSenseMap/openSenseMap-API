@@ -21,10 +21,10 @@ const connectRules = async function connectRules(req, res, next) {
     if (ruleA.length == 1 && ruleB.length == 1) {
       if (ruleA[0].user == req.user.id && ruleB[0].user == req.user.id) {
         var newConnector= await NotificationRuleConnector.initNew(req.user, req._userParams);
-        ruleA[0].connected = newConnector._id;
-        ruleB[0].connected = newConnector._id;
-        await NotificationRule.findOneAndUpdate({ _id: ruleA[0]._id }, {"connected": newConnector._id}, { runValidators: true, new: true, context: 'query', upsert: true, setDefaultsOnInsert: true }).exec();
-        await NotificationRule.findOneAndUpdate({ _id: ruleB[0]._id }, {"connected": newConnector._id}, { runValidators: true, new: true, context: 'query', upsert: true, setDefaultsOnInsert: true }).exec();
+        ruleA[0].connected.push(newConnector._id);
+        ruleB[0].connected.push(newConnector._id);
+        await NotificationRule.findOneAndUpdate({ _id: ruleA[0]._id }, {"connected": ruleA[0].connected}, { runValidators: true, new: true, context: 'query', upsert: true, setDefaultsOnInsert: true }).exec();
+        await NotificationRule.findOneAndUpdate({ _id: ruleB[0]._id }, {"connected": ruleB[0].connected}, { runValidators: true, new: true, context: 'query', upsert: true, setDefaultsOnInsert: true }).exec();
         res.send(201, { message: 'Rules successfully connected', data: newConnector });
       }
       else {
@@ -45,8 +45,16 @@ const deleteConnector = async function deleteConnector(req, res, next) {
 
     let connector = await NotificationRuleConnector.find({ _id: req._userParams.notificationRuleConnectorId }).exec();
     if(connector.length == 1) {
-      await NotificationRule.findOneAndUpdate({ _id: connector[0].ruleA }, {"connected": undefined}, { runValidators: true, new: true, context: 'query', upsert: true, setDefaultsOnInsert: true }).exec();
-      await NotificationRule.findOneAndUpdate({ _id: connector[0].ruleB }, {"connected": undefined}, { runValidators: true, new: true, context: 'query', upsert: true, setDefaultsOnInsert: true }).exec();
+      let ruleA = await NotificationRule.find({ _id: connector[0].ruleA }).exec();
+      let ruleB = await NotificationRule.find({ _id: connector[0].ruleB }).exec();
+      ruleA[0].connected = ruleA[0].connected.filter(x => {
+        return x.toString() != connector[0]._id.toString();
+      });
+      ruleB[0].connected = ruleB[0].connected.filter(x => {
+        return x.toString() != connector[0]._id.toString();
+      });
+      await NotificationRule.findOneAndUpdate({ _id: connector[0].ruleA }, {"connected": ruleA[0].connected}, { runValidators: true, new: true, context: 'query', upsert: true, setDefaultsOnInsert: true }).exec();
+      await NotificationRule.findOneAndUpdate({ _id: connector[0].ruleB }, {"connected": ruleB[0].connected}, { runValidators: true, new: true, context: 'query', upsert: true, setDefaultsOnInsert: true }).exec();
     }
         
     await NotificationRuleConnector.remove({ _id: req._userParams.notificationRuleConnectorId }).exec();
@@ -63,8 +71,18 @@ const updateConnector = async function updateConnector(req, res, next) {
     // update the old notification rules
     let connector = await NotificationRuleConnector.find({ _id: req._userParams.notificationRuleConnectorId }).exec();
     if(connector.length == 1) {
-      await NotificationRule.findOneAndUpdate({ _id: connector[0].ruleA }, {"connected": undefined}, { runValidators: true, new: true, context: 'query', upsert: true, setDefaultsOnInsert: true }).exec();
-      await NotificationRule.findOneAndUpdate({ _id: connector[0].ruleB }, {"connected": undefined}, { runValidators: true, new: true, context: 'query', upsert: true, setDefaultsOnInsert: true }).exec();
+      let ruleA = await NotificationRule.find({ _id: req._userParams.ruleA }).exec();
+      let ruleB = await NotificationRule.find({ _id: req._userParams.ruleB }).exec();
+      var indexA = ruleA[0].connected.map(x => {
+        return x.Id;
+      }).indexOf(id);
+      ruleA[0].connected.splice(indexA, 1);
+      var indexB = ruleB[0].connected.map(x => {
+        return x.Id;
+      }).indexOf(id);
+      ruleB[0].connected.splice(indexB, 1);
+      await NotificationRule.findOneAndUpdate({ _id: connector[0].ruleA }, {"connected": ruleA[0].connected}, { runValidators: true, new: true, context: 'query', upsert: true, setDefaultsOnInsert: true }).exec();
+      await NotificationRule.findOneAndUpdate({ _id: connector[0].ruleB }, {"connected": ruleB[0].connected}, { runValidators: true, new: true, context: 'query', upsert: true, setDefaultsOnInsert: true }).exec();
     }
     // update the new notification rules and connector
     let ruleA = await NotificationRule.find({ _id: req._userParams.ruleA }).exec();
@@ -72,8 +90,8 @@ const updateConnector = async function updateConnector(req, res, next) {
     if (ruleA.length == 1 && ruleB.length == 1) {
       if (ruleA[0].user == req.user.id && ruleB[0].user == req.user.id) {
         var newConnector= await NotificationRuleConnector.findOneAndUpdate({ _id: req._userParams.notificationRuleConnectorId }, req._userParams, { runValidators: true, new: true, context: 'query', upsert: true, setDefaultsOnInsert: true }).exec();
-        ruleA[0].connected = newConnector._id;
-        ruleB[0].connected = newConnector._id;
+        ruleA[0].connected.push(newConnector._id);
+        ruleB[0].connected.push(newConnector._id);
         await NotificationRule.findOneAndUpdate({ _id: ruleA[0]._id }, {"connected": newConnector._id}, { runValidators: true, new: true, context: 'query', upsert: true, setDefaultsOnInsert: true }).exec();
         await NotificationRule.findOneAndUpdate({ _id: ruleB[0]._id }, {"connected": newConnector._id}, { runValidators: true, new: true, context: 'query', upsert: true, setDefaultsOnInsert: true }).exec();
         res.send({ code: 'Ok', data: newConnector });
@@ -168,12 +186,25 @@ const deleteRule = async function deleteRule(req, res, next) {
 
   try {
 
+
     let deletedNotificationRules = await NotificationRule.remove({ _id: req._userParams.notificationRuleId }).exec();
+    let connectors = await NotificationRuleConnector.find({ $or: [ { ruleA: req._userParams.notificationRuleId },  
+      { ruleB: req._userParams.notificationRuleId }]}).exec();
+    connectors.forEach(async (connector) => {
+      let ruleId = (connector.ruleA != req._userParams.notificationRuleId) ? connector.ruleA : connector.ruleB
+      let rule = await NotificationRule.find({ _id: ruleId }).exec();
+      let index = rule[0].connected.indexOf(connector._id.toString());
+      if (index > -1) {
+        rule[0].connected.splice(index, 1); // 2nd parameter means remove one item only
+      }
+      await NotificationRule.findOneAndUpdate({ _id: ruleId }, {"connected": rule[0].connected}, { runValidators: true, new: true, context: 'query', upsert: true, setDefaultsOnInsert: true }).exec();
+    })
+    
     let deletedConnectors = await NotificationRuleConnector.remove({ $or: [ { ruleA: req._userParams.notificationRuleId },  
       { ruleB: req._userParams.notificationRuleId }]}).exec();
 
     let deletedNotifications = await Notification.remove({ notificationRule: req._userParams.notificationRuleId }).exec();
-
+    
     res.send({code: 'Ok', msg: 'Rule deleted with ' + deletedNotifications.result.n + ' notifications and ' + deletedConnectors.result.n + ' notification rule connectors'})
   } catch (err) {
     handleError(err, next);
