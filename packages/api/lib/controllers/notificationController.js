@@ -10,6 +10,7 @@ const
   { model: NotificationRuleConnector } = require('../../../models/src/notification/notificationRuleConnector'),
   { model: Notification } = require('../../../models/src/notification/notification'),
   { schema: NotificationChannelSchema } = require('../../../models/src/notification/notificationChannel'),
+  { model: Box } = require('../../../models/src/box/box'),
   jsonstringify = require('stringify-stream'),
   { UnauthorizedError, NotFoundError } = require('restify-errors');
 
@@ -28,11 +29,11 @@ const connectRules = async function connectRules(req, res, next) {
         res.send(201, { message: 'Rules successfully connected', data: newConnector });
       }
       else {
-        res.send(new NotFoundError(`You can onnly connect rules that belong to your user`));
+        throw new NotFoundError(`You can onnly connect rules that belong to your user`);
       }
     }
     else {
-      res.send(new NotFoundError(`Rules were not found`));
+      throw new NotFoundError(`Rules were not found`);
     }
   } catch (err) {
     handleError(err, next);
@@ -95,11 +96,11 @@ const updateConnector = async function updateConnector(req, res, next) {
         res.send({ code: 'Ok', data: newConnector });
       }
       else {
-        res.send(new NotFoundError(`You can onnly connect rules that belong to your user`));
+        throw new NotFoundError(`You can onnly connect rules that belong to your user`);
       }
     }
     else {
-      res.send(new NotFoundError(`Rules were not found`));
+      throw new NotFoundError(`Rules were not found`);
     }
   } catch (err) {
     handleError(err, next);
@@ -143,14 +144,17 @@ const listNotificationRules = async function listNotificationRules(req, res, nex
 
 const createRule = async function createRule(req, res, next) {
   try {
-    // req._userParams = {
-    //   ...req._userParams,
-    //   notificationChannel: [{ channel: 'email', email: req.user.email }]
-    // }
+    const box = await Box.findBoxById(req._userParams.box, { populate: false, lean: false });
+    if (box.useAuth && box.access_token && box.access_token !== req.headers.authorization) {
+      throw new UnauthorizedError('Box access token not valid!');
+    }
+    req._userParams.sensors.forEach((id) => {
+      if(box.sensors.filter((sensor) => { return sensor._id.toString() === id; }).length < 1) {
+        throw new NotFoundError(`Sensor not found on box.`);
+      }
+    })
     var newRule = await NotificationRule.initNew(req.user, req._userParams);
     res.send(201, { message: 'Rule successfully created', data: newRule });
-    // clearCache(['getBoxes', 'getStats']);
-    // postToSlack(`New NotificationRule: ${req.user.name} (${redactEmail(req.user.email)}) just registered "${newBox.name}" (${newBox.model}): <https://opensensemap.org/explore/${newBox._id}|link>`);
   } catch (err) {
     handleError(err, next);
   }
