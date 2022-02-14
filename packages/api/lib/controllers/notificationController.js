@@ -73,14 +73,12 @@ const updateConnector = async function updateConnector(req, res, next) {
     if(connector.length == 1) {
       let ruleA = await NotificationRule.find({ _id: req._userParams.ruleA }).exec();
       let ruleB = await NotificationRule.find({ _id: req._userParams.ruleB }).exec();
-      var indexA = ruleA[0].connected.map(x => {
-        return x.Id;
-      }).indexOf(id);
-      ruleA[0].connected.splice(indexA, 1);
-      var indexB = ruleB[0].connected.map(x => {
-        return x.Id;
-      }).indexOf(id);
-      ruleB[0].connected.splice(indexB, 1);
+      ruleA[0].connected = ruleA[0].connected.filter(x => {
+        return x.toString() != connector[0]._id.toString();
+      });
+      ruleB[0].connected = ruleB[0].connected.filter(x => {
+        return x.toString() != connector[0]._id.toString();
+      });
       await NotificationRule.findOneAndUpdate({ _id: connector[0].ruleA }, {"connected": ruleA[0].connected}, { runValidators: true, new: true, context: 'query', upsert: true, setDefaultsOnInsert: true }).exec();
       await NotificationRule.findOneAndUpdate({ _id: connector[0].ruleB }, {"connected": ruleB[0].connected}, { runValidators: true, new: true, context: 'query', upsert: true, setDefaultsOnInsert: true }).exec();
     }
@@ -215,10 +213,9 @@ const deleteRule = async function deleteRule(req, res, next) {
 const getNotifications = async function getNotifications(req, res, next) {
 
   try {
-    // TODO: test if notificationRule belongs to user
-    let personalRules = await Notification.find().exec();
+    let notifications = await Notification.find({ notificationRule: req._userParams.notificationRuleId }).exec();
 
-    res.send(201, { message: 'Notifications successfully retrieved', data: personalRules });
+    res.send(201, { message: 'Notifications successfully retrieved', data: notifications });
   } catch (err) {
     handleError(err, next);
   }
